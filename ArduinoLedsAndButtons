@@ -1,0 +1,167 @@
+ 
+;
+; LoopLed
+;
+; Created: 11/27/2017 12:51:54 PM
+; Author : deniz
+;1111012048, Deniz SALMAN
+;
+
+
+; Replace with your application code
+.ORG 0
+	JMP MAIN
+
+.EQU TEMP= 0x200 ; Geçici verileri sram üzerine kaydetmek için etiket kullandık
+
+MAIN: 
+LDI R16, HIGH(RAMEND) ; sram in en son adresi
+OUT SPH, R16 ; I/O birimindeki stack pointerın yuksek seviyeli bitlerini push edeceğimiz adres değerini atadık
+LDI R16, LOW(RAMEND) ; sramın in sondan bir önceki adresi
+OUT SPL, R16 ; I/O birimindeki stack pointerin düşük seviyeli bitlerin push edileceği adres
+
+LDI R16, 0xFF ; Portc pinlerinin tamamını çıkış yapmak için bit 1 değerlerini belirledik
+OUT DDRC, R16 ; Portc pinlerinin tamamını çıkış yaptık
+LDI R16, 0x00 ; b portununun tamamını giriş yapmak için bit 0 değerleri
+OUT DDRB, R16 ; b portunun tamamını çıkış yaptık
+
+LDI R24, 4 ; En fazla yanacak led sayısı
+LDI R25, 3; Hız kademe sayısı
+LDI R26, 17; Hız artım değeri
+LDI R27, 40; 
+
+SBI PORTB, 0 ; PortB register ının 0. pininin pull-up direncini etkinleştirdik
+SBI PORTB, 1 ; PortB register ının 1. pininin pull-up direncini etkin yaptık
+SBI PORTB, 2 ; PortB register ının 2. pininin pull-up direncini etkinleştirdik
+LDI R19, 0x01 ; 
+LDI R20, 0b10000000
+
+
+LDI R18, 0b00000001 ; ledlerin konumunu belirlemek için kullancağımız register
+LDI R16, 0b00000001 ; dönen ledlerin sayısını belirlemek için kullanacağımız register
+
+LOOP_SAAT_YONU: ;Ledlerin saat yonunde donmesini sağlayan fonksiyon
+
+SBIS PINB, 0  ; Buttondan LOW değeri geldiği zaman HIZ fonksiyonuna atlayacaktır
+JMP HIZ
+
+SBIS PINB, 1 ; Butondan LOW değeri geldiği zaman YON fonksiyonuna atlayacaktır.
+JMP YON
+
+SBIS PINB, 2 ; Butondan LOW değeri geldiği zaman LEDSAYI fonksiyonuna atlayacaktır
+JMP LEDSAYI
+
+OUT PORTC, R16 ; Çıkış verilecek pinleri belirliyoruz
+CALL DELAY ; Ledlerin dönüşü arasındaki gecikme süresi
+
+CLC ; carry bitini 0 ladık
+
+C3:
+ROL R18 ; hareket halindeki ledlerin konumunu takip ediyoruz, konuma göre yanan led sayısını artıracağız
+BRLO C3 ; Carry biti 1 olduğu sürece kaydıracağız, amaç carry bitindeki kayıbı önlemek
+
+CLC ; carry bitini her ihtimale karşı 0 ladık
+ROL R16 ; Hareket halindeli bitlerin saat yönünde konum değişimi
+
+BRSH C 
+ADD R16, R19 ; Eğer carry bitinde değer kalmış ise bunu en düşük seviyeli bite ekliyoruz
+CLC ; 
+C:
+
+RJMP LOOP_SAAT_YONU
+;---------------------------------
+
+LEDSAYI:
+CALL DELAYBUTON ;
+CLZ ; eskiden kalan z flag değeri ihtimaline karşı sıfırladık
+DEC R24 ;  ; 
+BRNE DEVAM
+MOV R16, R18
+LDI R24, 4
+RJMP LOOP_SAAT_YONU
+DEVAM: 
+STS TEMP, R18
+LDS R17, TEMP
+CLC
+LSL R16
+BRSH C4
+ADD R16, R19
+C4:
+ADD R16, R17
+RJMP LOOP_SAAT_YONU
+
+;-------------------------
+YON:
+SBIS PINB, 0
+JMP HIZ
+
+SBIS PINB, 1
+JMP LOOP_SAAT_YONU
+
+SBIS PINB, 1
+JMP LEDSAYI
+
+OUT PORTC, R16
+CALL DELAY
+CLC
+
+C5:
+ROR R18
+BRLO C5
+
+CLC
+ROR R16
+
+BRSH C6 
+ADD R16, R20
+CLC
+C6:
+
+RJMP YON
+
+;--------------------------------------
+
+HIZ:
+CALL DELAYBUTON
+SUB R27, R26
+CLZ
+DEC R25
+BRNE DEVAMHIZ
+LDI R27, 40
+LDI R25, 3
+DEVAMHIZ:
+
+RJMP LOOP_SAAT_YONU
+
+
+
+DELAY:
+	
+L1:	LDI R22, 200
+L2:	LDI R23, 250
+L3: 
+	NOP
+	NOP
+	DEC R23
+	BRNE L3
+	DEC R22
+	BRNE L2
+	DEC R21
+	BRNE L1
+	MOV R21, R27
+	RET
+
+DELAYBUTON:
+	LDI R21, 30
+L_1:	LDI R22, 200
+L_2:	LDI R23, 250
+L_3: 
+	NOP
+	NOP
+	DEC R23
+	BRNE L_3
+	DEC R22
+	BRNE L_2
+	DEC R21
+	BRNE L_1
+	RET
